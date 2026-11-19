@@ -177,6 +177,7 @@ struct CourseView: View {
     }
 }
 
+@MainActor
 struct LessonView: View {
     let lesson: Lesson
     let completed: Bool
@@ -185,6 +186,7 @@ struct LessonView: View {
     @AppStorage("runner.host") private var host = ""
     @Binding private var token: String
     @StateObject private var runner: Runner
+    @StateObject private var assignmentSpeech = AssignmentSpeech()
     @State private var running = false
     @State private var results: [Check] = []
     @State private var error: String?
@@ -208,6 +210,7 @@ struct LessonView: View {
         Form {
             Section("Разбор") { Text(lesson.theory) }
             Section("Задание") {
+                AssignmentAudio(text: lesson.task, speech: assignmentSpeech)
                 Text(lesson.task)
                 DisclosureGroup("Подсказка") { Text(lesson.hint) }
             }
@@ -278,6 +281,7 @@ struct LessonView: View {
                     .disabled(completed || !passed)
             }
         }
+        .onDisappear { assignmentSpeech.stop() }
         .navigationTitle(lesson.title)
         .navigationBarTitleDisplayMode(.inline)
     }
