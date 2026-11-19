@@ -410,5 +410,350 @@
       }
     ],
     "terminal": "Реализуй addTask в Practice/tasks.mjs. Выполни node --test. Затем запусти node server.mjs и отправь POST и GET через curl. Команды есть в README."
+  },
+  {
+    "id": "node-01",
+    "title": "Runtime, V8 и libuv",
+    "minutes": 25,
+    "module": "Среда Node.js и модули",
+    "theory": "Node.js запускает JavaScript в V8. libuv участвует в обработке событий и асинхронного ввода-вывода. Runtime также даёт API процессов, файлов и сети. В process.versions есть версии компонентов, а в process.release.name — имя runtime.",
+    "task": "Реализуй runtimeInfo(). Верни объект с полями runtime, node, v8 и uv. Прочитай данные из реально запущенного процесса. Функция не должна печатать результат сама.",
+    "starter": "import process from 'node:process';\n\nfunction runtimeInfo() { return {}; }",
+    "hint": "Используй process.release.name и process.versions. В process.version версия начинается с v, а в process.versions.node её нет.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst info = runtimeInfo();\n    assert.deepEqual(info, { runtime: 'node', node: process.versions.node, v8: process.versions.v8, uv: process.versions.uv });\n    console.log(info);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-02",
+    "title": "npm, package.json и scripts",
+    "minutes": 35,
+    "module": "Среда Node.js и модули",
+    "theory": "npm управляет пакетами и запускает команды из scripts. package.json описывает проект, package-lock.json фиксирует установленные версии. npm ci устанавливает из lockfile и проверяет, что он согласован с package.json.",
+    "task": "Создай функцию setupProject(dir). Запиши package.json для приватного ESM-проекта notes-cli версии 1.0.0. Добавь скрипт check со значением node verify.mjs. Запиши verify.mjs, который печатает ready. Проверка запустит настоящий npm run.",
+    "starter": "import { mkdtemp, writeFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n    import { execFileSync } from 'node:child_process';\n\nasync function setupProject(dir) {\n  // Запиши два файла\n}",
+    "hint": "Запиши оба файла через writeFile, а JSON собери через JSON.stringify. Для путей используй join(dir, имя).",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'npm-lab-'));\n    try {\n      await setupProject(dir);\n      assert.equal(execFileSync('npm', ['pkg', 'get', 'name', 'version', 'private', 'type'], { cwd: dir, encoding: 'utf8' }).trim().length > 0, true);\n      const pkg = JSON.parse(execFileSync('npm', ['pkg', 'get', 'name', 'version', 'private', 'type'], { cwd: dir, encoding: 'utf8' }));\n      assert.deepEqual(pkg, { name: 'notes-cli', version: '1.0.0', private: true, type: 'module' });\n      const output = execFileSync('npm', ['run', '--silent', 'check'], { cwd: dir, encoding: 'utf8' });\n      assert.equal(output.trim(), 'ready');\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-03",
+    "title": "process.argv и переменные среды",
+    "minutes": 30,
+    "module": "Среда Node.js и модули",
+    "theory": "process.argv хранит аргументы запуска, а process.env — строки из окружения. Обычно первые два аргумента содержат путь к Node и запущенному скрипту.",
+    "task": "Напиши config(argv, env). Найди --port и возьми следующий аргумент. При отсутствии флага используй env.PORT, а при отсутствии обеих настроек — 3000. Некорректный порт или флаг без значения должен выбрасывать RangeError. Допустимы десятичные строки от 1 до 65535.",
+    "starter": "import process from 'node:process';\n\nfunction config(argv = process.argv, env = process.env) { return 3000; }",
+    "hint": "Ищи флаг через indexOf с позиции 2. Проверь строку регулярным выражением и только затем преобразуй в число.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nassert.equal(config(['node', 'app.mjs'], {}), 3000);\n    assert.equal(config(['node', 'app.mjs'], { PORT: '8080' }), 8080);\n    assert.equal(config(['node', 'app.mjs', '--port', '4321'], { PORT: '8080' }), 4321);\n    assert.throws(() => config(['node', 'app.mjs', '--port'], {}), RangeError);\n    for (const PORT of ['0', '65536', '1e3', '']) assert.throws(() => config(['node', 'app.mjs'], { PORT }), RangeError);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-04",
+    "title": "CommonJS и ESM",
+    "minutes": 30,
+    "module": "Среда Node.js и модули",
+    "theory": "В ESM используют import/export, в CommonJS — require/module.exports. Расширение .mjs явно включает ESM, .cjs — CommonJS. Динамический import() возвращает Promise и может загрузить модуль по файловому URL.",
+    "task": "В loadUtilities(dir) запиши два модуля: math.cjs с add(a,b) и text.mjs с именованным экспортом clean(text), который убирает пробелы по краям. Загрузи оба и верни { add, clean }.",
+    "starter": "import { writeFile, mkdtemp, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n    import { pathToFileURL } from 'node:url';\n    import { createRequire } from 'node:module';\n\nasync function loadUtilities(dir) { return {}; }",
+    "hint": "Для require в ESM создай createRequire(import.meta.url). Для import преобразуй путь через pathToFileURL. CommonJS экспортируй через module.exports.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'module-lab-'));\n    try {\n      const { add, clean } = await loadUtilities(dir);\n      assert.equal(add(2, 5), 7);\n      assert.equal(clean('  Node  '), 'Node');\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-05",
+    "title": "Event loop и неблокирующий ввод-вывод",
+    "minutes": 35,
+    "module": "Асинхронность и файловая система",
+    "theory": "В модели реактора цикл принимает уведомления о готовности и передаёт управление обработчикам. Пока JavaScript выполняет длинную синхронную операцию, обработчики ждут. Некоторые операции, например файловые, могут использовать пул потоков libuv. В нём не запускаются произвольные JS-функции.",
+    "task": "В trace(path) запланируй микрозадачу queueMicrotask, затем начни чтение файла через fs/promises. Вставь sync в журнал синхронно. Добавь file с результатом, когда чтение закончится. Верни журнал после чтения.",
+    "starter": "import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';\nimport { tmpdir } from 'node:os';\nimport { join } from 'node:path';\n\nasync function trace(path) { return []; }",
+    "hint": "Используй await для ожидания readFile. Микрозадача выполнится после текущего синхронного кода, прежде чем завершится файловая операция.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'loop-lab-'));\n    try {\n      const path = join(dir, 'data.txt');\n      await writeFile(path, 'hello');\n      assert.deepEqual(await trace(path), ['sync', 'microtask', 'file:hello']);\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-06",
+    "title": "Фазы poll, check и таймеры",
+    "minutes": 30,
+    "module": "Асинхронность и файловая система",
+    "theory": "setImmediate ставит обработчик в фазу check. Таймер с нулевой задержкой выполнится при первой возможности после своего порога. Внутри I/O callback immediate зайдёт раньше созданного там таймера. Очередь nextTick обрабатывается перед продолжением цикла; порядок на верхнем уровне зависит в том числе от ESM или CommonJS.",
+    "task": "Реализуй phaseOrder(path). В callback fs.readFile поставь process.nextTick, setImmediate и setTimeout(…, 0). Каждый обработчик записывает своё имя. Верни Promise с результатом ['nextTick', 'immediate', 'timer']. Ошибку чтения пробрось.",
+    "starter": "import { readFile } from 'node:fs';\n    import { mkdtemp, writeFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function phaseOrder(path) { return []; }",
+    "hint": "Создай Promise вокруг readFile. При err вызови reject, а таймер завершает Promise после записи timer.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'phases-'));\n    try {\n      const path = join(dir, 'file.txt');\n      await writeFile(path, 'ok');\n      assert.deepEqual(await phaseOrder(path), ['nextTick', 'immediate', 'timer']);\n      await assert.rejects(async () => phaseOrder(join(dir, 'missing')), { code: 'ENOENT' });\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-07",
+    "title": "path и URL",
+    "minutes": 25,
+    "module": "Асинхронность и файловая система",
+    "theory": "Путь файла полезно собирать через node:path. URL разбирает pathname и query, а fileURLToPath правильно декодирует файловый URL. В URLSearchParams значение вроде q=foo+bar декодируется как foo bar.",
+    "task": "Напиши describe(rootURL, request). Верни root как локальный путь, file как путь файла data/tasks.json относительно root и query как значение q, либо null.",
+    "starter": "import { join } from 'node:path';\nimport { fileURLToPath } from 'node:url';\n\nfunction describe(rootURL, request) { return {}; }",
+    "hint": "Сочетай fileURLToPath, join и new URL(request, 'http://localhost').searchParams.get('q').",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nassert.deepEqual(describe('file:///tmp/my%20app/', '/tasks?q=hello+world'), {\n      root: '/tmp/my app/', file: '/tmp/my app/data/tasks.json', query: 'hello world',\n    });\n    assert.equal(describe('file:///tmp/app/', '/tasks').query, null);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-08",
+    "title": "Создание папок и работа с файлами",
+    "minutes": 35,
+    "module": "Асинхронность и файловая система",
+    "theory": "fs/promises даёт await для файловых операций. mkdir с recursive создаёт отсутствующие родительские папки. appendFile добавляет данные в конец файла, а readFile с utf8 возвращает строку.",
+    "task": "Функция buildLog(dir, lines) должна создать папку logs, перезаписать notes.txt пустой строкой, последовательно дописать каждую строку с переводом строки и вернуть содержимое файла.",
+    "starter": "import { mkdtemp, mkdir, writeFile, appendFile, readFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function buildLog(dir, lines) { return ''; }",
+    "hint": "Собери путь через join. Используй mkdir, writeFile, appendFile и readFile. Цикл for…of позволяет дождаться каждой записи.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'fs-lab-'));\n    try {\n      assert.equal(await buildLog(dir, ['one', 'два']), 'one\\nдва\\n');\n      assert.equal(await readFile(join(dir, 'logs', 'notes.txt'), 'utf8'), 'one\\nдва\\n');\n      assert.equal(await buildLog(dir, ['new']), 'new\\n');\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-09",
+    "title": "Свой Promise поверх callback",
+    "minutes": 25,
+    "module": "Асинхронность и файловая система",
+    "theory": "Node callbacks обычно получают ошибку первым аргументом. Обёртка Promise должна вызвать reject при ошибке и resolve с данными при успехе. Так вызывающая сторона может использовать await и try/catch.",
+    "task": "Реализуй readText(path) через readFile из node:fs. Верни Promise со строкой UTF-8. Если файла нет, Promise должен отклониться с исходной ошибкой ENOENT.",
+    "starter": "import { readFile } from 'node:fs';\n    import { mkdtemp, writeFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function readText(path) { return ''; }",
+    "hint": "new Promise((resolve, reject) => …). Передай в readFile кодировку utf8 и callback (error, text).",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'promise-lab-'));\n    try {\n      const path = join(dir, 'sample.txt');\n      await writeFile(path, 'Привет');\n      assert.equal(await readText(path), 'Привет');\n      await assert.rejects(async () => readText(join(dir, 'missing')), { code: 'ENOENT' });\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-10",
+    "title": "Файловое задание. Посчитай слова",
+    "minutes": 40,
+    "module": "Асинхронность и файловая система",
+    "theory": "Большую задачу удобно разбить на чтение, преобразование, запись и очистку. Используй await между зависимыми шагами, чтобы файл не удалился до окончания чтения и чтобы ошибка записи не скрылась.",
+    "task": "Функция summarize(input, output) читает текст, считает слова по пробельным разделителям и сохраняет в output число в виде строки. После успешной записи удаляет input. Для пустого текста запиши 0. При ошибке записи исходник должен остаться.",
+    "starter": "import { mkdtemp, readFile, writeFile, unlink, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function summarize(input, output) {\n  // Прочитай, запиши результат и удали исходник\n}",
+    "hint": "Сначала trim, затем split(/\\s+/) для непустой строки. Не вызывай unlink до await writeFile.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'summary-'));\n    const input = join(dir, 'input.txt');\n    const output = join(dir, 'out.txt');\n    try {\n      await writeFile(input, '  Node  и\\nпотоки ');\n      await assert.rejects(async () => summarize(input, join(dir, 'missing', 'out.txt')), { code: 'ENOENT' });\n      assert.equal(await readFile(input, 'utf8'), '  Node  и\\nпотоки ');\n      await summarize(input, output);\n      assert.equal(await readFile(output, 'utf8'), '3');\n      await assert.rejects(readFile(input), { code: 'ENOENT' });\n      await writeFile(input, '   ');\n      await summarize(input, output);\n      assert.equal(await readFile(output, 'utf8'), '0');\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-11",
+    "title": "Операционная система и дочерний процесс",
+    "minutes": 35,
+    "module": "Процессы, события и потоки",
+    "theory": "node:os даёт сведения об ОС. execFile запускает программу с массивом аргументов и отдельными stdout и stderr. Процесс имеет свой PID и пространство памяти. process.execPath указывает на используемый бинарник Node.",
+    "task": "В spawnReport() запусти дочерний Node через execFile. Получи его PID из stdout и верни { parent, child, platform, parallelism }. parallelism — число доступных вычислительных потоков по os.availableParallelism().",
+    "starter": "import { execFile } from 'node:child_process';\n    import { promisify } from 'node:util';\n    import { availableParallelism, platform } from 'node:os';\n    import process from 'node:process';\n\nasync function spawnReport() { return {}; }",
+    "hint": "Преобразуй execFile через promisify. Запусти процесс с аргументами ['-e', 'console.log(process.pid)'].",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst report = await spawnReport();\n    assert.equal(report.parent, process.pid);\n    assert.ok(Number.isInteger(report.child) && report.child > 0 && report.child !== report.parent);\n    assert.equal(report.platform, platform());\n    assert.equal(report.parallelism, availableParallelism());\n    console.log(report);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-12",
+    "title": "cluster и обмен сообщениями",
+    "minutes": 45,
+    "module": "Процессы, события и потоки",
+    "theory": "cluster запускает рабочие процессы с IPC. Каждый воркер имеет собственную память. Primary может отправить сообщение через worker.send(), а worker видит его через process.on('message'). Для вычислений в потоках используется другой модуль — worker_threads.",
+    "task": "В askWorker(file, value) настрой cluster на запуск file, создай воркер, отправь value и дождись сообщения с ответом. Тест подготовит файл воркера, который возводит число в квадрат. Воркер завершится сам. Дождись exit и верни ответ.",
+    "starter": "import cluster from 'node:cluster';\n    import { once } from 'node:events';\n    import { mkdtemp, writeFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function askWorker(file, value) { return null; }",
+    "hint": "cluster.setupPrimary({ exec: file, args: [], execArgv: [] }). После fork подпишись через once(worker, 'message') и once(worker, 'exit') до отправки сообщения.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'cluster-lab-'));\n    try {\n      const script = join(dir, 'worker.cjs');\n      await writeFile(script, \"process.once('message', value => process.send(value * value, () => process.disconnect()));\");\n      assert.equal(await askWorker(script, 7), 49);\n      assert.equal(await askWorker(script, 3), 9);\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-13",
+    "title": "EventEmitter: подписка и отписка",
+    "minutes": 30,
+    "module": "Процессы, события и потоки",
+    "theory": "emit вызывает обработчики синхронно в порядке подписки. on подписывает на каждое событие, once — на первое, off снимает конкретный обработчик. Событие error требует обработчика, иначе выбрасывается ошибка.",
+    "task": "Функция collect(bus, output) должна записать в output строку ready при первом ready и item:<id> при каждом item. Верни функцию отписки. После её вызова новые события не меняют output. Не трогай сторонние подписки.",
+    "starter": "import { EventEmitter } from 'node:events';\n\nfunction collect(bus, output) { return () => {}; }",
+    "hint": "Сохрани функции обработчиков и передай те же ссылки в off. Для ready используй once.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst bus = new EventEmitter();\n    const output = [];\n    const stop = collect(bus, output);\n    bus.emit('ready'); bus.emit('ready');\n    bus.emit('item', 4); bus.emit('item', 9);\n    stop(); bus.emit('item', 10);\n    assert.deepEqual(output, ['ready', 'item:4', 'item:9']);\n    const stopEarly = collect(bus, output);\n    stopEarly(); bus.emit('ready');\n    assert.equal(output.length, 3);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-14",
+    "title": "Readable. Чтение по частям",
+    "minutes": 30,
+    "module": "Процессы, события и потоки",
+    "theory": "Readable отдаёт фрагменты данных. for await…of позволяет дочитывать их по мере поступления. setEncoding('utf8') помогает корректно декодировать символ, байты которого оказались в разных фрагментах.",
+    "task": "Реализуй readChunks(path, onChunk). Потоком прочитай файл как UTF-8 с highWaterMark: 2, для каждого полученного фрагмента вызови onChunk(chunk) и верни всю строку. Ошибка открытия должна дойти до вызывающего кода.",
+    "starter": "import { createReadStream } from 'node:fs';\n    import { mkdtemp, writeFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n\nasync function readChunks(path, onChunk) { return ''; }",
+    "hint": "Используй createReadStream с options { encoding: 'utf8', highWaterMark: 2 } и for await…of.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'readable-'));\n    try {\n      const path = join(dir, 'input.txt');\n      const chunks = [];\n      await writeFile(path, 'abc Ж😊 def');\n      assert.equal(await readChunks(path, chunk => chunks.push(chunk)), 'abc Ж😊 def');\n      assert.equal(chunks.join(''), 'abc Ж😊 def');\n      assert.ok(chunks.length > 1);\n      await assert.rejects(async () => readChunks(join(dir, 'missing'), () => {}), { code: 'ENOENT' });\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-15",
+    "title": "Writable, pipeline и gzip",
+    "minutes": 40,
+    "module": "Процессы, события и потоки",
+    "theory": "Writable принимает фрагменты, а Transform может менять их. pipeline соединяет источники и получателей и отклоняет Promise при сбое. Он учитывает backpressure, чтобы быстрый источник не заполнил память, пока получатель пишет медленнее.",
+    "task": "Напиши compress(source, target). Прочитай файл как Readable, сожми gzip и запиши сжатые байты в Writable. Тест распакует результат и проверит его содержимое и обработку ошибки отсутствующего файла.",
+    "starter": "import { createReadStream, createWriteStream } from 'node:fs';\n    import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';\n    import { tmpdir } from 'node:os';\n    import { join } from 'node:path';\n    import { createGzip, gunzipSync } from 'node:zlib';\n    import { pipeline } from 'node:stream/promises';\n\nasync function compress(source, target) {\n  // Собери цепочку потоков\n}",
+    "hint": "Соедини createReadStream(source), createGzip() и createWriteStream(target) через await pipeline из node:stream/promises.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst dir = await mkdtemp(join(tmpdir(), 'gzip-'));\n    try {\n      const input = join(dir, 'source.txt');\n      const output = join(dir, 'result.gz');\n      const data = 'потоки\\n'.repeat(42000);\n      await writeFile(input, data);\n      await compress(input, output);\n      assert.equal(gunzipSync(await readFile(output)).toString(), data);\n      await assert.rejects(async () => compress(join(dir, 'missing'), output), { code: 'ENOENT' });\n    } finally { await rm(dir, { recursive: true, force: true }); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-16",
+    "title": "HTTP-сервер на node:http",
+    "minutes": 35,
+    "module": "HTTP и свой мини-фреймворк",
+    "theory": "createServer вызывает обработчик с IncomingMessage и ServerResponse. Строка req.url может содержать query. Сервер выставляет статус и заголовки перед res.end. В тестах listen(0) позволяет ОС выбрать свободный порт.",
+    "task": "Создай makeServer(). GET /health должен вернуть 200 с JSON { ok: true } и Content-Type application/json. Для других путей верни 404, для методов кроме GET на /health — 405 с заголовком Allow: GET.",
+    "starter": "import { createServer } from 'node:http';\nimport { once } from 'node:events';\n\nfunction makeServer() { return createServer((req, res) => { res.statusCode = 404; res.end(); }); }",
+    "hint": "Разбери pathname через new URL(req.url, 'http://localhost'). Записывай заголовки через writeHead и заканчивай ответ через end.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst server = makeServer().listen(0, '127.0.0.1');\n    try {\n      await once(server, 'listening');\n      const url = 'http://127.0.0.1:' + server.address().port;\n      const ok = await fetch(url + '/health?v=2');\n      assert.equal(ok.status, 200);\n      assert.equal(ok.headers.get('content-type')?.split(';')[0], 'application/json');\n      assert.deepEqual(await ok.json(), { ok: true });\n      assert.equal((await fetch(url + '/missing')).status, 404);\n      const wrong = await fetch(url + '/health', { method: 'POST' });\n      assert.equal(wrong.status, 405);\n      assert.equal(wrong.headers.get('allow'), 'GET');\n    } finally { server.close(); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-17",
+    "title": "Тело запроса и проверка JSON",
+    "minutes": 35,
+    "module": "HTTP и свой мини-фреймворк",
+    "theory": "Тело HTTP-запроса приходит частями. Сначала собираются байты и проверяется лимит. Затем Buffer преобразуется из UTF-8 и парсится в JSON. Лимит в байтах отличается от длины строки.",
+    "task": "В parseBody(stream, limit) прими Readable с Buffer-фрагментами. Если размер выше limit, верни { status: 413 }. При плохом JSON верни { status: 400 }. При успехе верни { status: 200, value }.",
+    "starter": "import { Readable } from 'node:stream';\n\nasync function parseBody(stream, limit) { return { status: 400 }; }",
+    "hint": "Проверяй chunk.length в цикле for await…of. Положи JSON.parse внутрь try/catch после Buffer.concat.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst bytes = Buffer.from('{\"title\":\"Дело\"}');\n    const source = () => Readable.from([bytes.subarray(0, 11), bytes.subarray(11)]);\n    assert.deepEqual(await parseBody(source(), bytes.length), { status: 200, value: { title: 'Дело' } });\n    assert.deepEqual(await parseBody(source(), bytes.length - 1), { status: 413 });\n    assert.deepEqual(await parseBody(Readable.from([Buffer.from('{')]), 2), { status: 400 });\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-18",
+    "title": "Мини-фреймворк. Роутер",
+    "minutes": 40,
+    "module": "HTTP и свой мини-фреймворк",
+    "theory": "Роутер хранит соответствие пары method/path и обработчика. У незнакомого пути статус 404. Если путь есть, но метод отсутствует, можно вернуть 405. Роутинг не зависит от хранения данных.",
+    "task": "Создай makeRouter() с методами add(method, path, handler) и dispatch(method, request). Dispatch ожидает async-обработчики, вызывает найденный с объектом URL и возвращает его результат. Для пути без маршрута верни 404, для неподдерживаемого метода — 405.",
+    "starter": "\n\nfunction makeRouter() { return { add() {}, async dispatch() { return 404; } }; }",
+    "hint": "Используй Map<path, Map<method, handler>>. Новый URL(request, 'http://localhost') отделит pathname от query.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst route = makeRouter();\n    route.add('GET', '/items', async url => ({ filter: url.searchParams.get('q') }));\n    route.add('POST', '/items', () => 201);\n    assert.deepEqual(await route.dispatch('GET', '/items?q=books'), { filter: 'books' });\n    assert.equal(await route.dispatch('POST', '/items'), 201);\n    assert.equal(await route.dispatch('DELETE', '/items'), 405);\n    assert.equal(await route.dispatch('GET', '/unknown'), 404);\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-19",
+    "title": "Мини-фреймворк. Middleware",
+    "minutes": 45,
+    "module": "HTTP и свой мини-фреймворк",
+    "theory": "Middleware получает context и next. Оно может изменить context, остановить запрос или дождаться остальных обработчиков через await next(). Такая цепочка позволяет вынести логирование и разбор данных из обработчика маршрута.",
+    "task": "Напиши compose(stack). Верни async-функцию (ctx, endpoint), выполняющую middleware по очереди. next() запускает оставшуюся цепочку. Если middleware не вызывает next(), endpoint не должен вызываться. Второй вызов одного и того же next() должен отклонять Promise.",
+    "starter": "\n\nfunction compose(stack) { return async (ctx, endpoint) => endpoint(ctx); }",
+    "hint": "Сделай внутреннюю async-функцию dispatch(index). Запоминай последний вызванный индекс и отклоняй повторный вызов.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst log = [];\n    const run = compose([\n      async (ctx, next) => { log.push('before'); await next(); log.push('after'); },\n      async (ctx, next) => { ctx.label = 'Node'; await next(); },\n    ]);\n    await run({}, ctx => log.push(ctx.label));\n    assert.deepEqual(log, ['before', 'Node', 'after']);\n    assert.equal(await compose([() => 401])({}, () => 200), 401);\n    await assert.rejects(compose([async (ctx, next) => { await next(); await next(); }])({}, () => 200));\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-20",
+    "title": "Проект. Собери свой HTTP-фреймворк",
+    "minutes": 55,
+    "module": "HTTP и свой мини-фреймворк",
+    "theory": "Метод use добавляет middleware, метод route регистрирует обработчик, а callback превращает запрос и ответ в контекст. Маршрут возвращает JSON-данные, callback отвечает за отправку. Ошибка из обработчика должна превратиться в HTTP 500.",
+    "task": "Дополни createApp(). Используй уже готовые compose и send. Реализуй use(fn), route(method, path, fn) и callback(). Создай ctx с req, res и url. Верни 404 для отсутствующего маршрута, 200 с JSON для найденного и 500 при ошибке. Middleware должно иметь возможность добавить заголовок или завершить ответ самостоятельно.",
+    "starter": "import { createServer } from 'node:http';\n    import { once } from 'node:events';\n\n    const send = (res, status, data) => {\n      res.writeHead(status, { 'Content-Type': 'application/json' });\n      res.end(JSON.stringify(data));\n    };\n\n    const compose = stack => (ctx, endpoint) => {\n      const dispatch = index => {\n        const layer = stack[index];\n        return layer ? layer(ctx, () => dispatch(index + 1)) : endpoint(ctx);\n      };\n      return dispatch(0);\n    };\n\nfunction createApp() {\n      return {\n        use(fn) {},\n        route(method, path, fn) {},\n        callback() { return (req, res) => send(res, 404, { error: 'Not found' }); },\n      };\n    }",
+    "hint": "В callback составь ключ из req.method и url.pathname. Запускай compose(stack)(ctx, endpoint). После выполнения цепочки проверь res.writableEnded. Лови исключения и не записывай заголовки второй раз.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst app = createApp();\n    app.use(async (ctx, next) => {\n      ctx.res.setHeader('x-course', 'node');\n      if (ctx.url.searchParams.has('blocked')) return send(ctx.res, 403, { error: 'Blocked' });\n      return next();\n    });\n    app.route('GET', '/hello', async ({ url }) => ({ hello: url.searchParams.get('who') }));\n    app.route('GET', '/problem', () => { throw new Error('Internal details'); });\n    const server = createServer(app.callback()).listen(0, '127.0.0.1');\n    try {\n      await once(server, 'listening');\n      const base = 'http://127.0.0.1:' + server.address().port;\n      const response = await fetch(base + '/hello?who=Node');\n      assert.equal(response.status, 200);\n      assert.equal(response.headers.get('x-course'), 'node');\n      assert.deepEqual(await response.json(), { hello: 'Node' });\n      assert.equal((await fetch(base + '/hello?blocked')).status, 403);\n      assert.equal((await fetch(base + '/missing')).status, 404);\n      const error = await fetch(base + '/problem');\n      assert.equal(error.status, 500);\n      assert.ok(!(await error.text()).includes('Internal details'));\n    } finally { server.close(); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-21",
+    "title": "SQLite. Таблица и запросы",
+    "minutes": 45,
+    "module": "База данных и итоговый проект",
+    "theory": "Встроенный node:sqlite позволяет использовать настоящую SQL-базу без отдельного сервера. Подготовленные запросы принимают значения отдельно от SQL. ORDER BY нужен, когда порядок строк важен.",
+    "task": "Создай makeRepository(db). Создай таблицу notes(id INTEGER PRIMARY KEY, title TEXT NOT NULL). Верни методы add(title) с идентификатором записи и list() со всеми заметками, отсортированными по id.",
+    "starter": "import { DatabaseSync } from 'node:sqlite';\n\nfunction makeRepository(db) { return { add() { return 0; }, list() { return []; } }; }",
+    "hint": "Используй db.exec для CREATE TABLE, db.prepare для INSERT с ? и SELECT, .run для записи и .all для чтения.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst db = new DatabaseSync(':memory:');\n    try {\n      const repo = makeRepository(db);\n      assert.equal(repo.add('Node'), 1);\n      assert.equal(repo.add(\"O'Reilly\"), 2);\n      assert.deepEqual(repo.list().map(row => ({...row})), [{id:1,title:'Node'}, {id:2,title:\"O'Reilly\"}]);\n      assert.equal(db.prepare('SELECT count(*) AS count FROM notes').get().count, 2);\n    } finally { db.close(); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-22",
+    "title": "Транзакции. Откат пачки записей",
+    "minutes": 45,
+    "module": "База данных и итоговый проект",
+    "theory": "Транзакция даёт возможность завершить группу изменений целиком или отменить её при ошибке. BEGIN открывает транзакцию, COMMIT фиксирует, ROLLBACK отменяет. UNIQUE запрещает повторяющиеся значения.",
+    "task": "Напиши addBatch(db, tags). Добавь все строки в существующую таблицу tags(name TEXT UNIQUE). Если одна запись повторяется, откати все вставки текущей пачки и пробрось ошибку.",
+    "starter": "import { DatabaseSync } from 'node:sqlite';\n\nfunction addBatch(db, tags) {\n  // Вставь пачку в одной транзакции\n}",
+    "hint": "Сделай BEGIN, затем выполни подготовленный INSERT для каждой записи. Используй COMMIT внутри try и ROLLBACK в catch.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst db = new DatabaseSync(':memory:');\n    try {\n      db.exec('CREATE TABLE tags (name TEXT UNIQUE)');\n      addBatch(db, ['node', 'sql']);\n      assert.throws(() => addBatch(db, ['http', 'node', 'stream']));\n      const names = db.prepare('SELECT name FROM tags ORDER BY name').all().map(row => row.name);\n      assert.deepEqual(names, ['node', 'sql']);\n    } finally { db.close(); }\nconsole.log(\"Все проверки пройдены.\");"
+    }
+  },
+  {
+    "id": "node-23",
+    "title": "Итог. API заметок с SQLite",
+    "minutes": 60,
+    "module": "База данных и итоговый проект",
+    "theory": "В готовом API HTTP-обработчик отвечает за протокол, репозиторий — за данные. Интеграционный тест делает обычный сетевой запрос и наблюдает результат так же, как фронтенд. Здесь репозиторий и чтение тела уже подготовлены.",
+    "task": "Реализуй async handle(req, res, repo). GET /notes возвращает 200 и массив заметок. POST /notes создаёт заметку: trim title, разреши от 1 до 80 символов, верни 201 и { id, title }. Плохой JSON или title — 400, неизвестный путь — 404, иной метод на /notes — 405. Проверь, что созданная заметка видна в GET.",
+    "starter": "import { createServer } from 'node:http';\n    import { once } from 'node:events';\n    import { DatabaseSync } from 'node:sqlite';\n\n    function send(res, status, value) {\n      res.writeHead(status, { 'Content-Type': 'application/json' });\n      res.end(JSON.stringify(value));\n    }\n\n    async function body(req) {\n      const chunks = [];\n      for await (const chunk of req) chunks.push(chunk);\n      return JSON.parse(Buffer.concat(chunks).toString('utf8'));\n    }\n\nasync function handle(req, res, repo) { send(res, 404, { error: 'Not found' }); }",
+    "hint": "Используй готовые send, body и repo. Разбери pathname отдельно от query. Ошибки разбора обрабатывай отдельно от записи в БД.",
+    "cases": [],
+    "terminal": null,
+    "node": {
+      "verification": "import { strict as assert } from 'node:assert';\nconst db = new DatabaseSync(':memory:');\n    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, title TEXT NOT NULL)');\n    const repo = {\n      add(title) { return Number(db.prepare('INSERT INTO notes(title) VALUES (?)').run(title).lastInsertRowid); },\n      list() { return db.prepare('SELECT id, title FROM notes ORDER BY id').all(); },\n    };\n    const server = createServer((req, res) => {\n      Promise.resolve().then(() => handle(req, res, repo)).catch(() => {\n        if (!res.headersSent) send(res, 500, { error: 'Internal server error' });\n        else res.destroy();\n      });\n    }).listen(0, '127.0.0.1');\n    try {\n      await once(server, 'listening');\n      const base = 'http://127.0.0.1:' + server.address().port;\n      const post = body => fetch(base + '/notes', { method: 'POST', body });\n      const created = await post('{\"title\":\"  Learn Node  \"}');\n      assert.equal(created.status, 201);\n      assert.deepEqual(await created.json(), { id: 1, title: 'Learn Node' });\n      const result = await fetch(base + '/notes?display=all');\n      assert.equal(result.status, 200);\n      assert.deepEqual(await result.json(), [{ id: 1, title: 'Learn Node' }]);\n      for (const invalid of ['{', 'null', '{\"title\":\"  \"}', JSON.stringify({ title: 'a'.repeat(81) })]) {\n        assert.equal((await post(invalid)).status, 400);\n      }\n      assert.equal((await fetch(base + '/notes', { method: 'DELETE' })).status, 405);\n      assert.equal((await fetch(base + '/missing')).status, 404);\n      assert.equal(repo.list().length, 1);\n    } finally {\n      server.close();\n      db.close();\n    }\nconsole.log(\"Все проверки пройдены.\");"
+    }
   }
 ]
