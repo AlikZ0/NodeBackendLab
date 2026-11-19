@@ -1,0 +1,414 @@
+[
+  {
+    "id": "01",
+    "title": "Данные для API",
+    "minutes": 20,
+    "theory": "Между базой и HTTP-ответом часто есть слой преобразования. Он отдаёт только поля, которые нужны клиенту. Array.filter выбирает записи, Array.map меняет их форму.",
+    "task": "Напиши solve(users). Верни массив имён активных пользователей. Убери пробелы по краям каждого имени. Сохрани исходный порядок.",
+    "starter": "function solve(users) {\n  return [];\n}",
+    "hint": "Сначала отфильтруй по user.active, затем вызови trim() для user.name.",
+    "cases": [
+      {
+        "args": [
+          [
+            {
+              "name": " Anna ",
+              "active": true
+            },
+            {
+              "name": "Bob",
+              "active": false
+            }
+          ]
+        ],
+        "expected": [
+          "Anna"
+        ]
+      },
+      {
+        "args": [
+          [
+            {
+              "name": " Alik",
+              "active": true
+            },
+            {
+              "name": " Maria ",
+              "active": true
+            }
+          ]
+        ],
+        "expected": [
+          "Alik",
+          "Maria"
+        ]
+      },
+      {
+        "args": [
+          []
+        ],
+        "expected": []
+      }
+    ],
+    "terminal": null
+  },
+  {
+    "id": "02",
+    "title": "Валидация запроса",
+    "minutes": 25,
+    "theory": "JSON от клиента нужно проверять перед записью. Например, null проходит typeof x === \"object\", а пробелы проходят проверку непустой строки без trim().",
+    "task": "Напиши solve(body). Верни очищенный title, если это строка длиной от 1 до 80 после trim(). Для остальных значений верни null.",
+    "starter": "function solve(body) {\n  return null;\n}",
+    "hint": "Найди body?.title, проверь typeof и измерь длину очищенной строки.",
+    "cases": [
+      {
+        "args": [
+          {
+            "title": "  Node.js  "
+          }
+        ],
+        "expected": "Node.js"
+      },
+      {
+        "args": [
+          {
+            "title": "   "
+          }
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          null
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          {
+            "title": 12
+          }
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          {
+            "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "args": [
+          {
+            "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "expected": null
+      }
+    ],
+    "terminal": "В папке Practice реализуй normalizeTitle в tasks.mjs. Выполни node --test --test-name-pattern=validation tasks.test.mjs."
+  },
+  {
+    "id": "03",
+    "title": "Асинхронные операции",
+    "minutes": 25,
+    "theory": "async-функция всегда возвращает Promise. await ждёт результат. Promise.all ждёт несколько операций и возвращает результаты в порядке входных промисов. Ошибка одной операции отклоняет общий промис.",
+    "task": "Напиши async solve(values). С помощью Promise.all получи результаты работы async-функции double для каждого числа.",
+    "starter": "async function double(value) {\n  return value * 2;\n}\n\nasync function solve(values) {\n  return [];\n}",
+    "hint": "Передай в Promise.all результат values.map(double).",
+    "cases": [
+      {
+        "args": [
+          [
+            1,
+            3,
+            5
+          ]
+        ],
+        "expected": [
+          2,
+          6,
+          10
+        ]
+      },
+      {
+        "args": [
+          [
+            0,
+            -3
+          ]
+        ],
+        "expected": [
+          0,
+          -6
+        ]
+      },
+      {
+        "args": [
+          []
+        ],
+        "expected": []
+      }
+    ],
+    "terminal": null
+  },
+  {
+    "id": "04",
+    "title": "Пагинация списка",
+    "minutes": 25,
+    "theory": "API возвращает большие списки частями. limit задаёт размер страницы, offset — сколько записей нужно пропустить. В URL параметры приходят строками.",
+    "task": "Напиши solve(items, offset, limit). Оба параметра числовые. При корректных значениях верни страницу массива. При отрицательном offset, limit вне 1–50 или нецелом параметре верни null.",
+    "starter": "function solve(items, offset, limit) {\n  return null;\n}",
+    "hint": "Используй Number.isInteger и slice(offset, offset + limit).",
+    "cases": [
+      {
+        "args": [
+          [
+            1,
+            2,
+            3,
+            4
+          ],
+          1,
+          2
+        ],
+        "expected": [
+          2,
+          3
+        ]
+      },
+      {
+        "args": [
+          [
+            1
+          ],
+          2,
+          1
+        ],
+        "expected": []
+      },
+      {
+        "args": [
+          [
+            1
+          ],
+          -1,
+          2
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          [
+            1
+          ],
+          0,
+          51
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          [
+            1
+          ],
+          0.5,
+          2
+        ],
+        "expected": null
+      }
+    ],
+    "terminal": "Реализуй paginate в Practice/tasks.mjs. Запусти node --test --test-name-pattern=pagination tasks.test.mjs."
+  },
+  {
+    "id": "05",
+    "title": "HTTP и маршрутизация",
+    "minutes": 35,
+    "theory": "Запрос состоит из метода и адреса. GET читает состояние, POST создаёт ресурс. URL.pathname даёт путь без query string. Ответ о создании ресурса обычно имеет статус 201.",
+    "task": "Напиши solve(method, path). Верни 200 для GET /tasks, 201 для POST /tasks, 405 для других методов на /tasks и 404 для других путей.",
+    "starter": "function solve(method, path) {\n  return 404;\n}",
+    "hint": "Сначала проверь путь, затем метод.",
+    "cases": [
+      {
+        "args": [
+          "GET",
+          "/tasks"
+        ],
+        "expected": 200
+      },
+      {
+        "args": [
+          "POST",
+          "/tasks"
+        ],
+        "expected": 201
+      },
+      {
+        "args": [
+          "DELETE",
+          "/tasks"
+        ],
+        "expected": 405
+      },
+      {
+        "args": [
+          "GET",
+          "/unknown"
+        ],
+        "expected": 404
+      }
+    ],
+    "terminal": "Реализуй routeStatus в Practice/tasks.mjs. Запусти node --test --test-name-pattern=routing tasks.test.mjs. В server.mjs посмотри, как node:http передаёт метод и URL."
+  },
+  {
+    "id": "06",
+    "title": "JSON и ошибки ввода",
+    "minutes": 30,
+    "theory": "JSON.parse выбрасывает SyntaxError, если тело сломано. В обработчике HTTP перехвати эту ошибку и верни 400. Ошибка чтения файла или сбой БД требуют другого ответа, например 500.",
+    "task": "Напиши solve(text). Верни разобранный объект только для JSON-объектов. Для массива, null, примитивов и невалидного текста верни null.",
+    "starter": "function solve(text) {\n  return null;\n}",
+    "hint": "Используй try/catch и Array.isArray.",
+    "cases": [
+      {
+        "args": [
+          "{\"title\":\"Node\"}"
+        ],
+        "expected": {
+          "title": "Node"
+        }
+      },
+      {
+        "args": [
+          "{}"
+        ],
+        "expected": {}
+      },
+      {
+        "args": [
+          "{"
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          "[1,2]"
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          "null"
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          "5"
+        ],
+        "expected": null
+      }
+    ],
+    "terminal": "Реализуй parseObject в Practice/tasks.mjs. Запусти node --test --test-name-pattern=json tasks.test.mjs."
+  },
+  {
+    "id": "08",
+    "title": "Параметры запроса API",
+    "minutes": 30,
+    "theory": "Подстановку значений по умолчанию и проверку чисел лучше делать на границе HTTP. Number(\"\") даёт 0, поэтому пустую строку полезно обработать отдельно.",
+    "task": "Напиши solve(raw, fallback). Верни fallback для null. Для строки из цифр верни целое число, если оно безопасно представимо в JavaScript. Иначе верни null.",
+    "starter": "function solve(raw, fallback) {\n  return fallback;\n}",
+    "hint": "Проверь строку через /^[0-9]+$/ и результат через Number.isSafeInteger.",
+    "cases": [
+      {
+        "args": [
+          null,
+          25
+        ],
+        "expected": 25
+      },
+      {
+        "args": [
+          "0",
+          25
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          "003",
+          25
+        ],
+        "expected": 3
+      },
+      {
+        "args": [
+          "",
+          25
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          "1e2",
+          25
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          "9007199254740993",
+          25
+        ],
+        "expected": null
+      }
+    ],
+    "terminal": "Реализуй readInteger в Practice/tasks.mjs. Запусти node --test --test-name-pattern=query tasks.test.mjs."
+  },
+  {
+    "id": "07",
+    "title": "Мини-проект. API задач",
+    "minutes": 60,
+    "theory": "Обработчик POST принимает JSON, валидирует title и сохраняет задачу. GET читает список. Тест через реальный HTTP проверяет, что маршрутизация, валидация и хранилище работают вместе.",
+    "task": "Напиши solve(tasks, title). Верни новый массив с добавленной задачей {id, title}. id равен максимальному существующему id плюс один. Для пустого массива начни с 1.",
+    "starter": "function solve(tasks, title) {\n  return tasks;\n}",
+    "hint": "Найди максимум через reduce с начальным значением 0. Используй spread, чтобы не менять исходный массив.",
+    "cases": [
+      {
+        "args": [
+          [],
+          "Read"
+        ],
+        "expected": [
+          {
+            "id": 1,
+            "title": "Read"
+          }
+        ]
+      },
+      {
+        "args": [
+          [
+            {
+              "id": 5,
+              "title": "Start"
+            }
+          ],
+          "Test"
+        ],
+        "expected": [
+          {
+            "id": 5,
+            "title": "Start"
+          },
+          {
+            "id": 6,
+            "title": "Test"
+          }
+        ]
+      }
+    ],
+    "terminal": "Реализуй addTask в Practice/tasks.mjs. Выполни node --test. Затем запусти node server.mjs и отправь POST и GET через curl. Команды есть в README."
+  }
+]

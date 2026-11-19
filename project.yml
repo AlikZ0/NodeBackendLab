@@ -1,0 +1,19 @@
+name: NodeBackendLab
+options:
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  NodeBackendLab:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes: [Info.plist]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.nodebackendlab.learning
+        INFOPLIST_FILE: App/Info.plist
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    scheme:
+      gatherCoverageData: false

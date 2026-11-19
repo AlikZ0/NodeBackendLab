@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:; connect-src 'none'">
+<script>
+function runLesson(code, cases) {
+  return new Promise(resolve => {
+    const source = `
+      function canonical(value) {
+        if (Array.isArray(value)) return value.map(canonical);
+        if (value && typeof value === 'object') {
+          return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
+        }
+        return value;
+      }
+
+      self.onmessage = async ({data}) => {
+        const results = [];
+        try {
+          const solve = new Function(data.code + '\\nreturn solve;')();
+          for (const {args, expected} of data.cases) {
+            try {
+              const actual = await solve(...args);
+              const value = JSON.stringify(actual);
+              const ok = JSON.stringify(canonical(actual)) === JSON.stringify(canonical(expected));
+              results.push({ok, message: ok ? 'Пройден' :
+                'Ожидалось ' + JSON.stringify(expected) + ', получено ' + String(value).slice(0, 300)});
+            } catch (error) {
+              results.push({ok: false, message: String(error).slice(0, 300)});
+            }
+          }
+        } catch (error) {
+          results.push({ok: false, message: String(error).slice(0, 300)});
+        }
+        self.postMessage(results);
+      };
+    `;
+    const url = URL.createObjectURL(new Blob([source], {type: 'application/javascript'}));
+    let worker;
+    try {
+      worker = new Worker(url);
+    } catch (error) {
+      URL.revokeObjectURL(url);
+      resolve([{ok: false, message: String(error)}]);
+      return;
+    }
+    function finish(results) {
+      clearTimeout(timer);
+      worker.terminate();
+      URL.revokeObjectURL(url);
+      resolve(results);
+    }
+    const timer = setTimeout(() => finish([{ok: false, message: 'Лимит 2 секунды. Проверь циклы и Promise.'}]), 2000);
+    worker.onmessage = ({data}) => finish(data);
+    worker.onerror = ({message}) => finish([{ok: false, message}]);
+    worker.postMessage({code, cases});
+  });
+}
+</script>

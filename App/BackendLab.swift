@@ -1,0 +1,231 @@
+import SwiftUI
+import WebKit
+
+struct Lesson: Codable, Identifiable {
+    let id: String
+    let title: String
+    let minutes: Int
+    let theory: String
+    let task: String
+    let starter: String
+    let hint: String
+    let cases: [TestCase]
+    let terminal: String?
+}
+
+struct TestCase: Codable {
+    let args: [JSONValue]
+    let expected: JSONValue
+}
+
+enum JSONValue: Codable {
+    case null, bool(Bool), number(Double), string(String), array([JSONValue]), object([String: JSONValue])
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        if value.decodeNil() { self = .null }
+        else if let bool = try? value.decode(Bool.self) { self = .bool(bool) }
+        else if let number = try? value.decode(Double.self) { self = .number(number) }
+        else if let string = try? value.decode(String.self) { self = .string(string) }
+        else if let array = try? value.decode([JSONValue].self) { self = .array(array) }
+        else { self = .object(try value.decode([String: JSONValue].self)) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var value = encoder.singleValueContainer()
+        switch self {
+        case .null: try value.encodeNil()
+        case .bool(let bool): try value.encode(bool)
+        case .number(let number): try value.encode(number)
+        case .string(let string): try value.encode(string)
+        case .array(let array): try value.encode(array)
+        case .object(let object): try value.encode(object)
+        }
+    }
+}
+
+struct Check: Codable {
+    let ok: Bool
+    let message: String
+}
+
+@MainActor
+final class Runner: NSObject, ObservableObject, WKNavigationDelegate {
+    @Published private(set) var ready = false
+    @Published private(set) var problem: String?
+    private let browser = WKWebView()
+
+    override init() {
+        super.init()
+        browser.navigationDelegate = self
+        guard let html = Bundle.main.url(forResource: "Runner", withExtension: "html") else {
+            problem = "Не найден файл среды выполнения."
+            return
+        }
+        browser.loadFileURL(html, allowingReadAccessTo: html)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        ready = true
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        problem = error.localizedDescription
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        problem = error.localizedDescription
+    }
+
+    func check(code: String, cases: [TestCase]) async throws -> [Check] {
+        let encoded = try JSONEncoder().encode(cases)
+        let args = try JSONSerialization.jsonObject(with: encoded)
+        let result = try await browser.callAsyncJavaScript(
+            "return await runLesson(code, cases);",
+            arguments: ["code": code, "cases": args],
+            in: nil,
+            contentWorld: .page
+        )
+        guard let rows = result as? [[String: Any]] else { throw CocoaError(.coderReadCorrupt) }
+        return try JSONDecoder().decode([Check].self, from: JSONSerialization.data(withJSONObject: rows))
+    }
+}
+
+@main
+struct BackendLabApp: App {
+    private let lessons: [Lesson]
+
+    init() {
+        if let url = Bundle.main.url(forResource: "Lessons", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode([Lesson].self, from: data) {
+            lessons = decoded
+        } else {
+            lessons = []
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup { CourseView(lessons: lessons) }
+    }
+}
+
+struct CourseView: View {
+    let lessons: [Lesson]
+    @AppStorage("done") private var done = ""
+    private var completed: Set<String> { Set(done.split(separator: ",").map(String.init)) }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("От React к backend").font(.title2.bold())
+                        Text("Пиши код на iPhone, затем запускай API и тесты под Node.js на Ubuntu.")
+                            .foregroundStyle(.secondary)
+                        ProgressView(value: Double(lessons.filter { completed.contains($0.id) }.count),
+                                     total: Double(max(lessons.count, 1)))
+                        Text("Пройдено \(lessons.filter { completed.contains($0.id) }.count) из \(lessons.count)")
+                            .font(.caption.monospacedDigit())
+                    }.padding(.vertical, 8)
+                }
+                Section("Учебный маршрут") {
+                    if lessons.isEmpty { Text("Не удалось загрузить уроки.") }
+                    ForEach(lessons) { lesson in
+                        NavigationLink {
+                            LessonView(lesson: lesson, completed: completed.contains(lesson.id)) {
+                                done = completed.union([lesson.id]).sorted().joined(separator: ",")
+                            }
+                        } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(lesson.title)
+                                    Text("\(lesson.minutes) мин").font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: completed.contains(lesson.id) ? "checkmark.circle.fill" : "terminal")
+                                    .foregroundStyle(completed.contains(lesson.id) ? Color.green : Color.accentColor)
+                            }.padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Node Backend Lab")
+        }
+    }
+}
+
+struct LessonView: View {
+    let lesson: Lesson
+    let completed: Bool
+    let markDone: () -> Void
+    @AppStorage private var code: String
+    @StateObject private var runner = Runner()
+    @State private var running = false
+    @State private var results: [Check] = []
+    @State private var error: String?
+    @State private var ubuntuDone = false
+
+    init(lesson: Lesson, completed: Bool, markDone: @escaping () -> Void) {
+        self.lesson = lesson
+        self.completed = completed
+        self.markDone = markDone
+        _code = AppStorage(wrappedValue: lesson.starter, "code.\(lesson.id)")
+    }
+
+    private var passed: Bool {
+        !lesson.cases.isEmpty && results.count == lesson.cases.count && results.allSatisfy(\.ok)
+    }
+
+    var body: some View {
+        Form {
+            Section("Разбор") { Text(lesson.theory) }
+            Section("Задание") {
+                Text(lesson.task)
+                DisclosureGroup("Подсказка") { Text(lesson.hint) }
+            }
+            Section("Редактор JavaScript") {
+                TextEditor(text: $code)
+                    .font(.system(.body, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .frame(minHeight: 180)
+                    .accessibilityLabel("Код решения")
+                    .disabled(running)
+                    .onChange(of: code) { _ in results = []; error = nil }
+                Button(running ? "Проверяем…" : "Проверить код") {
+                    running = true
+                    results = []
+                    error = nil
+                    let submitted = code
+                    Task {
+                        defer { running = false }
+                        do {
+                            results = try await runner.check(code: submitted, cases: lesson.cases)
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
+                    }
+                }.disabled(!runner.ready || running || code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                if let problem = runner.problem ?? error { Text(problem).foregroundStyle(.red) }
+                ForEach(results.indices, id: \.self) { index in
+                    Label("Тест \(index + 1). \(results[index].message)",
+                          systemImage: results[index].ok ? "checkmark.circle" : "xmark.circle")
+                        .foregroundStyle(results[index].ok ? Color.green : Color.red)
+                }
+            }
+            if let terminal = lesson.terminal {
+                Section("Практика Node.js на Ubuntu") {
+                    Text(terminal).textSelection(.enabled)
+                    Toggle("Я запустил тесты на Ubuntu", isOn: $ubuntuDone)
+                }
+            }
+            Section {
+                Button(completed ? "Урок пройден" : "Отметить урок пройденным", action: markDone)
+                    .disabled(completed || !passed || (lesson.terminal != nil && !ubuntuDone))
+            }
+        }
+        .navigationTitle(lesson.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
