@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import UIKit
 
 @MainActor
 final class AssignmentSpeech: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
@@ -11,6 +12,7 @@ final class AssignmentSpeech: NSObject, ObservableObject, AVSpeechSynthesizerDel
 
     @Published private(set) var state: State = .idle
     @Published private(set) var error: String?
+    @Published private(set) var section: String?
 
     private let synthesizer = AVSpeechSynthesizer()
     private var current: ObjectIdentifier?
@@ -21,9 +23,11 @@ final class AssignmentSpeech: NSObject, ObservableObject, AVSpeechSynthesizerDel
         synthesizer.delegate = self
     }
 
-    func toggle(_ assignment: String) {
+    func toggle(_ assignment: String, section: String) {
+        if self.section != section { stop() }
         switch state {
         case .idle:
+            self.section = section
             error = nil
             let voice = AVSpeechSynthesisVoice(language: "ru-RU")
                 ?? AVSpeechSynthesisVoice.speechVoices().first { $0.language.hasPrefix("ru-") }
@@ -45,10 +49,12 @@ final class AssignmentSpeech: NSObject, ObservableObject, AVSpeechSynthesizerDel
     }
 
     func stop() {
-        guard current != nil else { return }
+        let wasSpeaking = current != nil
         current = nil
+        section = nil
+        error = nil
         state = .idle
-        synthesizer.stopSpeaking(at: .immediate)
+        if wasSpeaking { synthesizer.stopSpeaking(at: .immediate) }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
@@ -63,19 +69,21 @@ final class AssignmentSpeech: NSObject, ObservableObject, AVSpeechSynthesizerDel
         Task { @MainActor [weak self] in
             guard let self, self.current == utterance else { return }
             self.current = nil
+            self.section = nil
             self.state = .idle
         }
     }
 }
 
 @MainActor
-struct AssignmentAudio: View {
+struct LessonTextActions: View {
+    let title: String
     let text: String
     @ObservedObject var speech: AssignmentSpeech
 
     private var control: (title: String, icon: String) {
-        switch speech.state {
-        case .idle: return ("Прослушать задание", "speaker.wave.2")
+        switch speech.section == title ? speech.state : .idle {
+        case .idle: return ("Прослушать", "speaker.wave.2")
         case .playing: return ("Пауза", "pause.fill")
         case .paused: return ("Продолжить", "play.fill")
         }
@@ -83,18 +91,26 @@ struct AssignmentAudio: View {
 
     var body: some View {
         Button {
-            speech.toggle(text)
+            speech.toggle(text, section: title)
         } label: {
             Label(control.title, systemImage: control.icon)
         }
-        if speech.state != .idle {
+        .accessibilityHint(title)
+        Button {
+            UIPasteboard.general.string = text
+            UIAccessibility.post(notification: .announcement, argument: "Скопировано")
+        } label: {
+            Label("Копировать", systemImage: "doc.on.doc")
+        }
+        .accessibilityHint(title)
+        if speech.section == title && speech.state != .idle {
             Button {
                 speech.stop()
             } label: {
                 Label("Остановить", systemImage: "stop.fill")
             }
         }
-        if let error = speech.error {
+        if speech.section == title, let error = speech.error {
             Text(error)
                 .font(.footnote)
                 .foregroundStyle(.secondary)

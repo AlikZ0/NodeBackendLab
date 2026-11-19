@@ -18,12 +18,15 @@ function runLesson(code, cases) {
         try {
           const solve = new Function(data.code + '\\nreturn solve;')();
           for (const {args, expected} of data.cases) {
+            const input = JSON.stringify(args).slice(0, 300);
             try {
               const actual = await solve(...args);
               const value = JSON.stringify(actual);
               const ok = JSON.stringify(canonical(actual)) === JSON.stringify(canonical(expected));
-              results.push({ok, message: ok ? 'Пройден' :
-                'Ожидалось ' + JSON.stringify(expected) + ', получено ' + String(value).slice(0, 300)});
+              results.push({ok, message: (ok ? 'Пройден. ' : 'Ошибка. ') +
+                'Вход: ' + input +
+                '. Ожидалось: ' + JSON.stringify(expected) +
+                '. Получено: ' + String(value).slice(0, 300)});
             } catch (error) {
               results.push({ok: false, message: String(error).slice(0, 300)});
             }

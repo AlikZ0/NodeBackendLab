@@ -6,6 +6,9 @@ struct Lesson: Codable, Identifiable {
     let title: String
     let minutes: Int
     let theory: String
+    let explanation: String
+    let expectedResult: String
+    let sampleCode: String
     let task: String
     let starter: String
     let hint: String
@@ -131,7 +134,7 @@ struct CourseView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("От React к backend").font(.title2.bold())
-                        Text("Пиши и проверяй решения на iPhone. Лабораторные Node.js запускаются на твоём Ubuntu.")
+                        Text("Изучай все уроки без подключения. Для автоматической проверки лабораторных Node.js можно подключить Ubuntu.")
                             .foregroundStyle(.secondary)
                         ProgressView(value: Double(lessons.filter { completed.contains($0.id) }.count),
                                      total: Double(max(lessons.count, 1)))
@@ -208,15 +211,20 @@ struct LessonView: View {
 
     var body: some View {
         Form {
-            Section("Разбор") { Text(lesson.theory) }
+            Section("Теория") {
+                lessonText("Теория", lesson.theory)
+            }
             Section("Задание") {
-                AssignmentAudio(text: lesson.task, speech: assignmentSpeech)
-                Text(lesson.task)
-                DisclosureGroup("Подсказка") { Text(lesson.hint) }
+                lessonText("Задание", lesson.task)
+                DisclosureGroup("Подсказка") {
+                    lessonText("Подсказка", lesson.hint)
+                }
             }
             Section(lesson.node == nil ? "Редактор JavaScript" : "Редактор Node.js") {
                 if lesson.node != nil {
-                    NavigationLink("Подключить Ubuntu") { ConnectionView(token: $token) }
+                    Text("Без подключения можно написать решение и сверить его с разбором ниже.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 TextEditor(text: $code)
                     .font(.system(.body, design: .monospaced))
@@ -230,59 +238,107 @@ struct LessonView: View {
                         nodeResult = nil
                         error = nil
                     }
-                Button(running ? "Проверяем…" : "Проверить код") {
-                    running = true
-                    results = []
-                    nodeResult = nil
-                    error = nil
-                    let submitted = code
-                    Task {
-                        defer { running = false }
-                        do {
-                            if let lab = lesson.node {
-                                nodeResult = try await NodeRunner.check(code: submitted, lab: lab, host: host, token: token)
-                            } else {
-                                results = try await runner.check(code: submitted, cases: lesson.cases)
-                            }
-                        } catch {
-                            self.error = error.localizedDescription
-                        }
+                LessonTextActions(title: "Твой код", text: code, speech: assignmentSpeech)
+                    .disabled(code.isEmpty)
+                if let lab = lesson.node {
+                    ShareLink(item: code + "\n\n" + lab.verification) {
+                        Label("Поделиться кодом с тестами", systemImage: "square.and.arrow.up")
                     }
-                }.disabled((lesson.node == nil && !runner.ready) || running ||
-                           code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                if let problem = runner.problem ?? error { Text(problem).foregroundStyle(.red) }
-                if let nodeResult {
-                    Label(nodeResult.ok ? "Тесты пройдены" : "Проверка завершилась ошибкой",
-                          systemImage: nodeResult.ok ? "checkmark.circle" : "xmark.circle")
-                        .foregroundStyle(nodeResult.ok ? Color.green : Color.red)
-                    if !nodeResult.output.isEmpty {
-                        ScrollView {
-                            Text(nodeResult.output)
-                                .font(.system(.footnote, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(maxHeight: 220)
+                    DisclosureGroup("Автопроверка через Ubuntu") {
+                        NavigationLink("Настроить подключение") { ConnectionView(token: $token) }
+                        checkButton
                     }
+                } else {
+                    checkButton
                 }
-                ForEach(results.indices, id: \.self) { index in
-                    Label("Тест \(index + 1). \(results[index].message)",
-                          systemImage: results[index].ok ? "checkmark.circle" : "xmark.circle")
-                        .foregroundStyle(results[index].ok ? Color.green : Color.red)
+            }
+            if let report = verificationReport {
+                Section("Результат проверки") {
+                    lessonText("Результат проверки", report)
+                }
+            }
+            Section("Разбор решения") {
+                DisclosureGroup("Показать разбор и пример") {
+                    lessonText("Объяснение решения", lesson.explanation)
+                    Text("Ожидаемый результат").font(.headline)
+                    lessonText("Ожидаемый результат", lesson.expectedResult)
+                    Text("Пример кода").font(.headline)
+                    lessonText("Пример кода", lesson.sampleCode, monospaced: true)
                 }
             }
             if let terminal = lesson.terminal {
                 Section("Дополнительно на Ubuntu") {
-                    Text(terminal).textSelection(.enabled)
+                    lessonText("Команды для Ubuntu", terminal)
                 }
             }
             Section {
-                Button(completed ? "Урок пройден" : "Отметить урок пройденным", action: markDone)
-                    .disabled(completed || !passed)
+                Button(completed ? "Урок пройден" : (passed ? "Отметить урок пройденным" : "Отметить после самопроверки"), action: markDone)
+                    .disabled(completed || (!passed && lesson.node == nil))
+                if lesson.node != nil && !completed && !passed {
+                    Text("Эта отметка сохраняет прогресс. Для результата тестов запусти автопроверку.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .onDisappear { assignmentSpeech.stop() }
         .navigationTitle(lesson.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if assignmentSpeech.state != .idle {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        assignmentSpeech.stop()
+                    } label: {
+                        Label("Остановить озвучку", systemImage: "stop.circle")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lessonText(_ title: String, _ text: String, monospaced: Bool = false) -> some View {
+        Text(text)
+            .font(monospaced ? .system(.footnote, design: .monospaced) : .body)
+            .textSelection(.enabled)
+        LessonTextActions(title: title, text: text, speech: assignmentSpeech)
+    }
+
+    private var verificationReport: String? {
+        if let problem = runner.problem ?? error { return problem }
+        if let nodeResult {
+            let summary = nodeResult.ok ? "Тесты пройдены." : "Проверка завершилась ошибкой."
+            return nodeResult.output.isEmpty ? summary : summary + "\n\n" + nodeResult.output
+        }
+        guard !results.isEmpty else { return nil }
+        let count = results.filter(\.ok).count
+        let details = results.enumerated().map { index, check in
+            "Тест \(index + 1). \(check.message)"
+        }
+        return (["Пройдено тестов: \(count) из \(lesson.cases.count)."] + details).joined(separator: "\n\n")
+    }
+
+    private var checkButton: some View {
+        Button(running ? "Проверяем…" : "Проверить код") {
+            running = true
+            results = []
+            nodeResult = nil
+            error = nil
+            let submitted = code
+            Task {
+                defer { running = false }
+                do {
+                    if let lab = lesson.node {
+                        nodeResult = try await NodeRunner.check(code: submitted, lab: lab, host: host, token: token)
+                    } else {
+                        results = try await runner.check(code: submitted, cases: lesson.cases)
+                    }
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+        }.disabled((lesson.node == nil && !runner.ready) || running ||
+                   code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 }
